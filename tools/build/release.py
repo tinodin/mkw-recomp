@@ -16,6 +16,7 @@ Usage: uv run tools/build/release.py --target linux|windows --version 0.1.0
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -114,6 +115,11 @@ def licenses(dst: Path) -> None:
         shutil.copy2(SYSROOT / rel, dst / f"{name}-copyright")
 
 
+def safe_version(version: str) -> str:
+    """Version text safe in release artifact file names, from tags and workflow_dispatch branch names."""
+    return re.sub(r"[^0-9A-Za-z._+-]+", "-", version).strip("-") or "dev"
+
+
 def linux(dist: Path, version: str) -> Path:
     exe = dist / "mkw"
     glibc = subprocess.run(["objdump", "-T", str(exe)], capture_output=True, text=True, check=True).stdout
@@ -135,7 +141,7 @@ def linux(dist: Path, version: str) -> Path:
     (app / ".DirIcon").symlink_to("mkw-recomp.png")
     tool, runtime = fetch(*PINS["appimagetool"]), fetch(*PINS["runtime"])
     tool.chmod(0o755)
-    out = OUT / f"mkw-recomp-{version}-x86_64.AppImage"
+    out = OUT / f"mkw-recomp-{safe_version(version)}-x86_64.AppImage"
     # appimagetool is an AppImage itself: extracted and run, no FUSE in a container
     env = dict(os.environ, ARCH="x86_64", APPIMAGE_EXTRACT_AND_RUN="1")
     subprocess.run([str(tool), "--no-appstream", "--runtime-file", str(runtime), str(app), str(out)], env=env,
@@ -149,7 +155,7 @@ def _glibc_versions(text: str) -> list[str]:
 
 
 def windows(dist: Path, version: str) -> Path:
-    out = OUT / f"mkw-recomp-{version}-windows-x64.zip"
+    out = OUT / f"mkw-recomp-{safe_version(version)}-windows-x64.zip"
     files = [dist / "mkw.exe", *(dist / d for d in WIN_DLLS), *sorted((dist / "setup").rglob("*"))]
     check_no_game(dist / "setup")
     top = Path("mkw-recomp")
